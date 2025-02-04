@@ -13,6 +13,9 @@ permissions:
   checks: write
   contents: write
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
   test-build:
     name: "Run Tests"
