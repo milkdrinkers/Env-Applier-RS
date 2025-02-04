@@ -30,7 +30,24 @@ use tokio::fs;
 
 pub async fn update_yaml_node(file_path: &Path, node_path: &str, new_value: &str) -> Result<()> {
     let yaml_content = fs::read_to_string(file_path).await?;
-    let mut lines: Vec<String> = yaml_content.lines().map(|d| d.to_string()).collect();
+
+    // Capture trailing newlines
+    let trailing_newlines: String = yaml_content
+        .chars()
+        .rev()
+        .take_while(|c| *c == '\n')
+        .collect::<String>()
+        .chars()
+        .rev()
+        .collect();
+
+    let main_content = if trailing_newlines.is_empty() {
+        yaml_content.as_str()
+    } else {
+        &yaml_content[0..yaml_content.len() - trailing_newlines.len()]
+    };
+
+    let mut lines: Vec<String> = main_content.lines().map(|d| d.to_string()).collect();
     let path_parts: Vec<&str> = node_path.split('.').collect();
 
     // Detect indentation from first non-empty line
@@ -96,7 +113,10 @@ pub async fn update_yaml_node(file_path: &Path, node_path: &str, new_value: &str
         );
     }
 
-    fs::write(file_path, lines.join("\n")).await?;
+    let new_main_content = lines.join("\n");
+    let new_content = format!("{}{}", new_main_content, trailing_newlines);
+
+    fs::write(file_path, new_content).await?;
     Ok(())
 }
 
