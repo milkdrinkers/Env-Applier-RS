@@ -57,6 +57,10 @@ pub async fn apply(config: &Config) -> Result<u32> {
                 }
 
                 for node in &loc.node {
+                    if node.is_empty() || node.trim().is_empty() {
+                        continue;
+                    }
+
                     change_file(
                         file_format,
                         file,
