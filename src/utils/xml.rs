@@ -36,7 +36,7 @@ pub async fn update_xml_node(file_path: &Path, node_path: &str, new_value: &str)
     let path_parts: Vec<&str> = node_path.split('.').collect();
 
     // Track current state
-    let mut current_depth = 0;
+    let mut _current_depth = 0;
     let mut path_index = 0;
     let mut in_target_path = false;
     let mut target_line = None;
@@ -102,7 +102,7 @@ pub async fn update_xml_node(file_path: &Path, node_path: &str, new_value: &str)
                 if found_nodes.is_empty() {
                     in_target_path = false;
                 }
-                current_depth -= indent_size;
+                _current_depth -= indent_size;
             }
             continue;
         }
@@ -117,7 +117,7 @@ pub async fn update_xml_node(file_path: &Path, node_path: &str, new_value: &str)
                 found_nodes.push(tag_name);
                 path_index += 1;
                 in_target_path = true;
-                current_depth += indent_size;
+                _current_depth += indent_size;
 
                 if path_index == path_parts.len() {
                     target_line = Some(i);
@@ -126,7 +126,7 @@ pub async fn update_xml_node(file_path: &Path, node_path: &str, new_value: &str)
             } else if in_target_path && tag_name == path_parts[path_index] {
                 found_nodes.push(tag_name);
                 path_index += 1;
-                current_depth += indent_size;
+                _current_depth += indent_size;
 
                 if path_index == path_parts.len() {
                     target_line = Some(i);
@@ -154,7 +154,7 @@ pub async fn update_xml_node(file_path: &Path, node_path: &str, new_value: &str)
     Ok(())
 }
 
-pub fn parse_variable(env: &str) -> String {
+pub fn _parse_variable(env: &str) -> String {
     if let Ok(numeric_value) = f64::from_str(env) {
         if !env.trim().is_empty() {
             return numeric_value.to_string();
