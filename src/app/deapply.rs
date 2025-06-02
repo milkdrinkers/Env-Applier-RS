@@ -21,11 +21,12 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-
+use std::fs;
 use crate::app::change_file;
 use crate::config::Config;
 use crate::utils::yaml::parse_variable;
 use anyhow::Result;
+use filetime::{set_file_times, FileTime};
 
 pub async fn deapply(config: &Config) -> Result<u32> {
     let mut changes = 0;
@@ -58,6 +59,11 @@ pub async fn deapply(config: &Config) -> Result<u32> {
                     continue;
                 }
 
+                let mut file_changed = false;
+                let original_metadata = fs::metadata(file)?;
+                let original_mtime = FileTime::from_last_modification_time(&original_metadata);
+                let original_atime = FileTime::from_last_access_time(&original_metadata);
+
                 for node in &loc.node {
                     if node.is_empty() || node.trim().is_empty() {
                         continue;
@@ -70,7 +76,13 @@ pub async fn deapply(config: &Config) -> Result<u32> {
                         parse_variable(&replacement).as_str(),
                     )
                     .await?;
+                    file_changed = true;
                     changes += 1;
+                }
+
+                // Preserve original file metadata
+                if file_changed {
+                    set_file_times(file, original_atime, original_mtime)?;
                 }
             }
         }
