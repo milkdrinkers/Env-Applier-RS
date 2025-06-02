@@ -35,17 +35,13 @@ async fn change_file(
     node: &str,
     value: &str,
 ) -> anyhow::Result<()> {
-    if file_type == "yaml" {
-        crate::utils::yaml::update_yaml_node(file, node, value).await?;
-    } else if file_type == "json" {
-        crate::utils::json::update_json_node(file, node, value).await?;
-    } else if file_type == "toml" {
-        crate::utils::toml::update_toml_node(file, node, value).await?;
-    } else if file_type == "xml" {
-        crate::utils::xml::update_xml_node(file, node, value).await?;
-    } else if file_type == "properties" {
-        crate::utils::properties::update_properties_node(file, node, value).await?;
+    match file_type {
+        "yaml" => crate::utils::yaml::update_yaml_node(file, node, value).await,
+        "json" => crate::utils::json::update_json_node(file, node, value).await,
+        "toml" => crate::utils::toml::update_toml_node(file, node, value).await,
+        "xml" => crate::utils::xml::update_xml_node(file, node, value).await,
+        "properties" => crate::utils::properties::update_properties_node(file, node, value).await,
+        "hocon" => crate::utils::hocon::update_hocon_node(file, node, value).await,
+        _ => Ok(()),
     }
-
-    Ok(())
 }

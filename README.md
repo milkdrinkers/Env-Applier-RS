@@ -96,6 +96,7 @@ suffix = "%%" # What env variables should be suffixed with when changes are de-a
     [specific.json]
     [specific.toml]
     [specific.properties]
+    [specific.hocon]
     [specific.yaml]
         [[specific.yaml.locations]]
         file = "test.yml" # The file which contains the config node
@@ -147,13 +148,14 @@ DB_ADDRESS=$DB_HOST:$DB_PORT
 
 ### File Formats
 
-| Format      | Comments Support | Table Support | Array Support |
-|-------------|------------------|---------------|---------------|
-| **YAML**    | ✅ (Using `#`)   | ✅ (Maps)     | ✅ (Sequences) |
-| **JSON**   | ❌  | ❌            | ✅             |
-| **JSONC**   | ✅ (Using `//`)  | ❌            | ✅             |
-| **TOML**    | ✅ (Using `#`)   | ✅            | ✅             |
-| **Properties** | ✅ (Using `#`/`!`)| ❌         | ❌             |
+| Format         | Comments Support   | Table Support | Array Support |
+|----------------|--------------------|---------------|---------------|
+| **YAML**       | ✅ (Using `#`)      | ✅ (Maps)     | ✅ (Sequences) |
+| **JSON**       | ❌                  | ❌            | ✅             |
+| **JSONC**      | ✅ (Using `//`)     | ❌            | ✅             |
+| **TOML**       | ✅ (Using `#`)      | ✅            | ✅             |
+| **HOCON**      | ✅ (Using `#`/`//`) | ✅         | ✅             |
+| **Properties** | ✅ (Using `#`/`!`)  | ❌         | ❌             |
 
 The specs & criteria for modifications is straightforward:
 - Only replaces the value of a node, it never adds entries to the file

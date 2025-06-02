@@ -27,3 +27,4 @@ pub mod properties;
 pub mod toml;
 pub mod xml;
 pub mod yaml;
+pub mod hocon;

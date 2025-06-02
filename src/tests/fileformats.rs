@@ -500,12 +500,299 @@ regular.key = value"#,
             "long.key",
             "new \\\n    value \\\n    continues",
         )
-        .await?;
+            .await?;
 
         let content = std::fs::read_to_string(&file_path)?;
         assert!(content.contains("long.key = new \\"));
         assert!(content.contains("    continues # Comment"));
         assert!(content.contains("regular.key = value"));
+        Ok(())
+    }
+}
+
+// HOCON Tests
+#[cfg(test)]
+mod hocon_tests {
+    use crate::tests::fileformats::test_utils::create_test_file;
+    use crate::utils::hocon::update_hocon_node;
+    use anyhow::Result;
+    use tempfile::TempDir;
+
+    #[tokio::test]
+    async fn test_hocon_update_simple_key_value() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let file_path = create_test_file(
+            &temp_dir,
+            "simple.conf",
+            r#"
+# This is a comment
+database = "localhost"
+port = 5432
+enabled = true
+"#,
+        )?;
+
+        update_hocon_node(&file_path, "database", "remote-host").await?;
+
+        let content = std::fs::read_to_string(&file_path)?;
+        assert!(content.contains("database = \"remote-host\""));
+        assert!(content.contains("port = 5432"));
+        assert!(content.contains("# This is a comment"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_update_hocon_nested_object() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let file_path = create_test_file(
+            &temp_dir,
+            "nested.conf",
+            r#"
+server {
+  host = "localhost"
+  port = 8080
+  ssl {
+    enabled = false
+    cert = "path/to/cert"
+  }
+}
+"#,
+        )?;
+
+        update_hocon_node(&file_path, "server.ssl.enabled", "true").await?;
+
+        let content = std::fs::read_to_string(&file_path)?;
+        assert!(content.contains("enabled = true"));
+        assert!(content.contains("host = \"localhost\""));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_hocon_update_with_comments() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let file_path = create_test_file(
+            &temp_dir,
+            "comments.conf",
+            r#"
+# Database configuration
+database {
+  host = "localhost" # This is the host
+  port = 5432 // This is the port
+}
+"#,
+        )?;
+
+        update_hocon_node(&file_path, "database.host", "remote").await?;
+
+        let content = std::fs::read_to_string(&file_path)?;
+        assert!(content.contains("host = \"remote\" # This is the host"));
+        assert!(content.contains("// This is the port"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_hocon_complex_update() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let file_path = create_test_file(
+            &temp_dir,
+            "complex.conf",
+            r###"
+# Application Configuration
+app {
+    name = "MyApp"
+    version: "1.0.0"  // version comment
+
+    server {
+        "bind-address" = "127.0.0.1"
+        port: 8080
+
+        security {
+            oauth {
+                "client-id" = "test-client" # client identifier
+                secret = "secret-value"
+
+                endpoints {
+                    // Token endpoint configuration
+                    "token-url" = "https://old.token.url" # needs update
+                    auth-url: "https://auth.url"
+                }
+            }
+        }
+    }
+
+    features {
+        experimental = false
+        "user-management" = true
+    }
+}
+"###,
+        )?;
+
+        // Test criteria from your image:
+        // 1. Deep nesting: app.server.security.oauth.endpoints.token-url
+        // 2. Mixed key formats (quoted/unquoted)
+        // 3. Mixed assignment operators (= vs :)
+        // 4. Multiple comment styles
+        update_hocon_node(
+            &file_path,
+            "app.server.security.oauth.endpoints.token-url",
+            "\"https://new.token.url\"",
+        )
+            .await?;
+
+        let content = std::fs::read_to_string(&file_path)?;
+
+        // Verify all preservation criteria
+        // 1. Target value updated with proper quoting
+        assert!(content.contains(r#""token-url" = "https://new.token.url""#));
+
+        // 2. Deep nesting structure preserved
+        assert!(content.contains("endpoints {"));
+        assert!(content.contains("oauth {"));
+
+        // 3. Mixed key formats preserved
+        assert!(content.contains(r#""bind-address""#));      // Quoted key
+        assert!(content.contains("port:"));                   // Unquoted key
+        assert!(content.contains(r#""client-id""#));         // Quoted key
+        assert!(content.contains(r#""token-url""#));          // Quoted key
+
+        // 4. Mixed assignment operators preserved
+        assert!(content.contains(r#"name = "MyApp""#));       // Equals operator
+        assert!(content.contains("version: \"1.0.0\""));     // Colon operator
+        assert!(content.contains(r#"secret = "secret-value""#));
+        assert!(content.contains("auth-url: \"https://auth.url\""));
+
+        // 5. Comment preservation
+        assert!(content.contains("# Application Configuration"));  // Full-line hash
+        assert!(content.contains("// version comment"));           // Full-line double-slash
+        assert!(content.contains("# client identifier"));          // End-of-line hash
+        assert!(content.contains("// Token endpoint configuration")); // Full-line double-slash
+        assert!(content.contains("# needs update"));               // End-of-line hash
+
+        // 6. Unchanged values preservation
+        assert!(content.contains(r#""bind-address" = "127.0.0.1""#));
+        assert!(content.contains("port: 8080"));
+        assert!(content.contains(r#""client-id" = "test-client""#));
+        assert!(content.contains("experimental = false"));
+        assert!(content.contains(r#""user-management" = true"#));
+
+        // 7. Structure preservation
+        assert!(content.contains("features {"));
+        assert!(content.contains("security {"));
+
+        Ok(())
+    }
+
+    // Additional edge case tests
+    #[tokio::test]
+    async fn test_hocon_deep_nesting_with_mixed_formats() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let file_path = create_test_file(
+            &temp_dir,
+            "deep_nesting.conf",
+            r#"
+level1 {
+    "level2-key" = {
+        level3: {
+            "level3-key" = "old" # comment
+            "level4-key": {
+                "target.key" = "old.value"  # c2omment
+            }
+        }
+    }
+}
+"#,
+        )?;
+
+        update_hocon_node(
+            &file_path,
+            "level1.level2-key.level3.level3-key",
+            "\"new.value\"",
+        )
+            .await?;
+        update_hocon_node(
+            &file_path,
+            "level1.\"level2-key\".level3.\"level4-key\".\"target.key\"",
+            "\"new.value\"",
+        )
+            .await?;
+
+        let content = std::fs::read_to_string(&file_path)?;
+        assert!(content.contains(r#""level3-key" = "new.value""#));
+        assert!(content.contains("# comment"));
+        assert!(content.contains(r#""target.key" = "new.value""#));
+        assert!(content.contains("  # c2omment"));
+        assert!(content.contains("\"level2-key\" = {"));
+        assert!(content.contains("level3: {"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_hocon_preserve_whitespace_and_comments() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let file_path = create_test_file(
+            &temp_dir,
+            "whitespace.conf",
+            r#"
+key1 = value1   # end comment
+
+// Section comment
+section {
+    key2: value2   // with comment
+    key3 = value3
+}
+"#,
+        )?;
+
+        update_hocon_node(&file_path, "section.key2", "\"new_value\"").await?;
+
+        let content = std::fs::read_to_string(&file_path)?;
+        assert!(content.contains("key2: \"new_value\"   // with comment"));
+        assert!(content.contains("key1 = value1   # end comment"));
+        assert!(content.contains("// Section comment"));
+        assert!(content.contains("key3 = value3"));
+
+        // Verify whitespace preservation
+        let lines: Vec<&str> = content.lines().collect();
+        assert_eq!(lines[0], "");
+        assert_eq!(lines[1], "key1 = value1   # end comment");
+        assert_eq!(lines[2], "");
+        assert_eq!(lines[3], "// Section comment");
+        assert_eq!(lines[4], "section {");
+        assert_eq!(lines[5], "    key2: \"new_value\"   // with comment");
+        assert_eq!(lines[6], "    key3 = value3");
+        assert_eq!(lines[7], "}");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_hocon_keys_with_special_chars() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let file_path = create_test_file(
+            &temp_dir,
+            "special_chars.conf",
+            r#"
+"key:with:colon" = "value1"
+"key.with.dots" = "value2"
+"key with spaces" = "value3"
+"#,
+        )?;
+
+        // Test colon in key
+        update_hocon_node(&file_path, "\"key:with:colon\"", "\"new1\"").await?;
+
+        // Test dots in key
+        update_hocon_node(&file_path, "\"key.with.dots\"", "\"new2\"").await?;
+
+        // Test spaces in key
+        update_hocon_node(&file_path, "\"key with spaces\"", "\"new3\"").await?;
+
+        let content = std::fs::read_to_string(&file_path)?;
+        assert!(content.contains(r#""key:with:colon" = "new1""#));
+        assert!(content.contains(r#""key.with.dots" = "new2""#));
+        assert!(content.contains(r#""key with spaces" = "new3""#));
         Ok(())
     }
 }

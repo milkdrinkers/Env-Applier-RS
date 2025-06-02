@@ -74,18 +74,21 @@ pub struct Specific {
     pub properties: FileTypeConfig,
     #[serde(default)]
     pub xml: FileTypeConfig,
+    #[serde(default)]
+    pub hocon: FileTypeConfig,
 }
 
 impl Specific {
-    pub fn iter(&self) -> impl Iterator<Item = (&'static str, &FileTypeConfig)> {
+    pub fn iter(&self) -> impl Iterator<Item=(&'static str, &FileTypeConfig)> {
         vec![
             ("json", &self.json),
             ("toml", &self.toml),
             ("yaml", &self.yaml),
             ("properties", &self.properties),
             ("xml", &self.xml),
+            ("hocon", &self.hocon),
         ]
-        .into_iter()
+            .into_iter()
     }
 }
 
