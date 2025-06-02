@@ -157,8 +157,8 @@ pub async fn update_hocon_node(file_path: &Path, node_path: &str, new_value: &st
 
         // Preserve comments at the end of the line
         let comment_patterns = [
-            r"(\s*#.*)$",     // # comments
-            r"(\s*//.*)$",    // // comments
+            r"(\s+#.*)$",     // # comments require whitespace
+            r"(\s+//.*)$",    // // comments require whitespace
         ];
 
         let mut comment = String::new();

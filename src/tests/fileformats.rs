@@ -795,6 +795,36 @@ section {
         assert!(content.contains(r#""key with spaces" = "new3""#));
         Ok(())
     }
+
+    #[tokio::test]
+    async fn test_hocon_value_with_comment_chars() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let file_path = create_test_file(
+            &temp_dir,
+            "comment_chars.conf",
+            r#"
+key1 = value1   # end comment
+
+// Section comment
+section {
+    key2: "jdbc:mysql://localhost:3306/test"   // with comment
+    key3 = "jdbc:mysql://localhost:3306/test"
+}
+"#,
+        )?;
+
+        update_hocon_node(&file_path, "key1", "jdbc:mysql://127.0.0.1:3306/name").await?;
+        update_hocon_node(&file_path, "section.key2", "jdbc:mysql://127.0.0.1:3306/name").await?;
+        update_hocon_node(&file_path, "section.key3", "jdbc:mysql://127.0.0.1:3306/name").await?;
+
+        let content = std::fs::read_to_string(&file_path)?;
+        assert!(content.contains("key1 = \"jdbc:mysql://127.0.0.1:3306/name\"   # end comment"));
+        assert!(content.contains("key2: \"jdbc:mysql://127.0.0.1:3306/name\"   // with comment"));
+        assert!(content.contains("// Section comment"));
+        assert!(content.contains("key3 = \"jdbc:mysql://127.0.0.1:3306/name\""));
+
+        Ok(())
+    }
 }
 
 // XML Tests
