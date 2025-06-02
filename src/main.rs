@@ -59,6 +59,11 @@ enum Commands {
         #[arg(short, long, value_name = "FILE", help = "Path to config file")]
         config: Option<PathBuf>,
     },
+    // List files defined in configuration
+    Files {
+        #[arg(short, long, value_name = "FILE", help = "Path to config file")]
+        config: Option<PathBuf>,
+    },
 }
 
 #[tokio::main]
@@ -70,6 +75,7 @@ async fn main() -> anyhow::Result<()> {
         Commands::Apply { config } => handle_apply(config).await,
         Commands::Deapply { config } => handle_deapply(config).await,
         Commands::Parse { config } => handle_parse(config).await,
+        Commands::Files { config } => handle_files(config).await,
     }?;
 
     Ok(())
@@ -121,6 +127,35 @@ async fn handle_parse(config: &Option<PathBuf>) -> anyhow::Result<()> {
 
     config::load_config(potential_config).await?;
     println!("The config has been validated.");
+
+    Ok(())
+}
+
+async fn handle_files(config: &Option<PathBuf>) -> anyhow::Result<()> {
+    let potential_config = if let Some(path) = config {
+        Some(path.to_path_buf())
+    } else {
+        None
+    };
+
+    let cfg = config::load_config(potential_config).await?;
+    match app::get(&cfg).await {
+        Ok(files) => {
+            if files.is_empty() {
+                println!();
+            } else {
+                let mut output = String::with_capacity(files.len() * 80);
+                for file in files {
+                    output.push_str(file.as_str());
+                    output.push('\n');
+                }
+                print!("{}", output);
+            }
+        }
+        Err(..) => {
+            println!();
+        }
+    } ;
 
     Ok(())
 }

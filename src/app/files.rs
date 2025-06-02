@@ -21,29 +21,46 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
+use crate::config::Config;
+use anyhow::Result;
+use std::collections::HashSet;
 
-mod apply;
-mod deapply;
-mod files;
+pub async fn get(config: &Config) -> Result<HashSet<String>> {
+    let mut unique_paths = HashSet::new();
 
-pub use apply::apply;
-pub use deapply::deapply;
-pub use files::get;
-use std::path::PathBuf;
+    for (_file_format, file_config) in config.specific.iter() {
+        for loc in &file_config.locations {
+            if loc.override_settings.exempt_apply {
+                continue;
+            }
 
-async fn change_file(
-    file_type: &'static str,
-    file: &PathBuf,
-    node: &str,
-    value: &str,
-) -> anyhow::Result<()> {
-    match file_type {
-        "yaml" => crate::utils::yaml::update_yaml_node(file, node, value).await,
-        "json" => crate::utils::json::update_json_node(file, node, value).await,
-        "toml" => crate::utils::toml::update_toml_node(file, node, value).await,
-        "xml" => crate::utils::xml::update_xml_node(file, node, value).await,
-        "properties" => crate::utils::properties::update_properties_node(file, node, value).await,
-        "hocon" => crate::utils::hocon::update_hocon_node(file, node, value).await,
-        _ => Ok(()),
+            if loc.file.is_empty() {
+                continue;
+            }
+
+            if let Ok(_environment_variable) = std::env::var(&loc.variable) {} else {
+                continue;
+            };
+
+            for file in &loc.file {
+                if !file.exists() {
+                    continue;
+                }
+
+                if loc.node.is_empty() {
+                    continue;
+                }
+
+                for node in &loc.node {
+                    if node.is_empty() || node.trim().is_empty() {
+                        continue;
+                    }
+
+                    unique_paths.insert(file.to_string_lossy().to_string());
+                }
+            }
+        }
     }
+
+    Ok(unique_paths)
 }
