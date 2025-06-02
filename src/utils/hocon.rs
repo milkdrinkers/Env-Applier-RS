@@ -27,6 +27,7 @@ use regex::Regex;
 use std::path::Path;
 use tokio::fs;
 
+#[allow(unused_assignments)]
 pub async fn update_hocon_node(file_path: &Path, node_path: &str, new_value: &str) -> Result<()> {
     let hocon_content = fs::read_to_string(file_path).await?;
 
