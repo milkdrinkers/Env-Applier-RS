@@ -101,12 +101,7 @@ jobs:
         run: cargo install cross
 
       - name: Build release binary
-        run: |
-          if [ "${{ matrix.os }}" == "windows-latest" ]; then
-            cross build --release --target ${{ matrix.target }}
-          else
-            cross build --release --target ${{ matrix.target }}
-          fi
+        run: cross build --release --target ${{ matrix.target }}
 
       - name: Prepare artifacts
         shell: bash
