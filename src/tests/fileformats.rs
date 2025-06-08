@@ -508,6 +508,192 @@ regular.key = value"#,
         assert!(content.contains("regular.key = value"));
         Ok(())
     }
+
+    #[tokio::test]
+    async fn test_whitespace_preservation() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let file_path = create_test_file(
+            &temp_dir,
+            "whitespace.properties",
+            r#"# Test whitespace preservation
+no_spaces=old_value
+single_space = old_value
+multiple_spaces     =     old_value
+tabs	=	old_value
+mixed   =	  old_value"#,
+        )?;
+
+        // Test each case
+        update_properties_node(&file_path, "no_spaces", "new_value").await?;
+        update_properties_node(&file_path, "single_space", "new_value").await?;
+        update_properties_node(&file_path, "multiple_spaces", "new_value").await?;
+        update_properties_node(&file_path, "tabs", "new_value").await?;
+        update_properties_node(&file_path, "mixed", "new_value").await?;
+
+        let content = std::fs::read_to_string(&file_path)?;
+
+        // Verify exact whitespace preservation
+        assert!(content.contains("no_spaces=new_value"));
+        assert!(content.contains("single_space = new_value"));
+        assert!(content.contains("multiple_spaces     =     new_value"));
+        assert!(content.contains("tabs\t=\tnew_value"));
+        assert!(content.contains("mixed   =\t  new_value"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_no_quotes_added() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let file_path = create_test_file(
+            &temp_dir,
+            "quotes.properties",
+            r#"# Test that quotes are not added
+host = old_host
+port=old_port
+url = http://example.com"#,
+        )?;
+
+        update_properties_node(&file_path, "host", "135.148.171.219:27072").await?;
+        update_properties_node(&file_path, "port", "8080").await?;
+        update_properties_node(&file_path, "url", "https://newsite.com").await?;
+
+        let content = std::fs::read_to_string(&file_path)?;
+
+        // Verify no quotes are added
+        assert!(content.contains("host = 135.148.171.219:27072"));
+        assert!(content.contains("port=8080"));
+        assert!(content.contains("url = https://newsite.com"));
+
+        // Verify no quotes exist around values
+        assert!(!content.contains("\"135.148.171.219:27072\""));
+        assert!(!content.contains("\"8080\""));
+        assert!(!content.contains("\"https://newsite.com\""));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_empty_values() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let file_path = create_test_file(
+            &temp_dir,
+            "empty.properties",
+            r#"# Test empty values
+voice_host = old_value
+empty_key =
+another_key=something"#,
+        )?;
+
+        update_properties_node(&file_path, "voice_host", "").await?;
+        update_properties_node(&file_path, "empty_key", "").await?;
+        update_properties_node(&file_path, "another_key", "").await?;
+
+        let content = std::fs::read_to_string(&file_path)?;
+
+        // Verify empty values are handled correctly (no quotes added)
+        // Each should preserve its original spacing around =
+        assert!(content.contains("voice_host = "));  // Had space after =
+        assert!(content.contains("empty_key ="));   // Had space after =
+        assert!(content.contains("another_key="));   // No space after =
+
+        // Verify no empty quotes
+        assert!(!content.contains("\"\""));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_values_with_spaces() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let file_path = create_test_file(
+            &temp_dir,
+            "spaces.properties",
+            r#"# Test values with spaces
+name = old name
+path = /old/path with spaces
+description=old description here"#,
+        )?;
+
+        update_properties_node(&file_path, "name", "new name with spaces").await?;
+        update_properties_node(&file_path, "path", "/new/path with more spaces").await?;
+        update_properties_node(&file_path, "description", "new description here").await?;
+
+        let content = std::fs::read_to_string(&file_path)?;
+
+        // Verify values with spaces work without quotes
+        assert!(content.contains("name = new name with spaces"));
+        assert!(content.contains("path = /new/path with more spaces"));
+        assert!(content.contains("description=new description here"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_values_with_special_characters() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let file_path = create_test_file(
+            &temp_dir,
+            "special.properties",
+            r#"# Test special characters in values
+url = http://old.com
+regex = old.*pattern
+json = {"old": "value"}"#,
+        )?;
+
+        update_properties_node(&file_path, "url", "http://new.com:8080/path?param=value").await?;
+        update_properties_node(&file_path, "regex", "new.*pattern[a-z]+").await?;
+        update_properties_node(&file_path, "json", r#"{"new": "value", "array": [1,2,3]}"#).await?;
+
+        let content = std::fs::read_to_string(&file_path)?;
+
+        // Verify special characters work without quotes
+        assert!(content.contains("url = http://new.com:8080/path?param=value"));
+        assert!(content.contains("regex = new.*pattern[a-z]+"));
+        assert!(content.contains(r#"json = {"new": "value", "array": [1,2,3]}"#));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_comments_with_equals() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let file_path = create_test_file(
+            &temp_dir,
+            "comment_equals.properties",
+            r#"# Test comments with equals signs
+key = old_value # This comment has = signs in it
+another=value # URL = http://example.com"#,
+        )?;
+
+        update_properties_node(&file_path, "key", "new_value").await?;
+        update_properties_node(&file_path, "another", "new_another").await?;
+
+        let content = std::fs::read_to_string(&file_path)?;
+
+        // Verify comments with equals are preserved
+        assert!(content.contains("key = new_value # This comment has = signs in it"));
+        assert!(content.contains("another=new_another # URL = http://example.com"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_key_not_found() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let file_path = create_test_file(
+            &temp_dir,
+            "missing.properties",
+            r#"# Test missing key
+existing_key = value
+# Comment line"#,
+        )?;
+
+        // This should not modify the file since key doesn't exist
+        update_properties_node(&file_path, "nonexistent_key", "new_value").await?;
+
+        let content = std::fs::read_to_string(&file_path)?;
+
+        // Verify file is unchanged
+        assert!(content.contains("existing_key = value"));
+        assert!(!content.contains("nonexistent_key"));
+        assert!(!content.contains("new_value"));
+        Ok(())
+    }
 }
 
 // HOCON Tests

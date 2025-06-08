@@ -23,7 +23,6 @@
  */
 
 use anyhow::Result;
-use regex::Regex;
 use std::path::Path;
 use tokio::fs;
 
@@ -51,23 +50,79 @@ pub async fn update_properties_node(file_path: &Path, key: &str, new_value: &str
             continue;
         }
 
-        let re = Regex::new(&format!(r"^{}\s*=\s*(.*?)(\s*#.*)?$", regex::escape(key)))?;
-
-        if re.is_match(line) {
-            target_line = Some(i);
-            break;
+        // Simple approach: find key at start, then find = and capture parts
+        if let Some(eq_pos) = line.find('=') {
+            let key_part = line[..eq_pos].trim();
+            if key_part == key {
+                target_line = Some(i);
+                break;
+            }
         }
     }
 
     // Update the target line if found
     if let Some(target_index) = target_line {
         let line = &lines[target_index];
-        let comment_re = Regex::new(r"(\s*#.*)$")?;
-        let comment = comment_re
-            .captures(line)
-            .map_or("".to_string(), |caps| caps[1].to_string());
 
-        lines[target_index] = format!("{} = {}{}", key, new_value, comment);
+        // Find the = position
+        if let Some(eq_pos) = line.find('=') {
+            // Extract the key portion with its whitespace
+            let key_with_whitespace = &line[..eq_pos];
+
+            // Find where the value starts after =
+            let after_eq = &line[eq_pos + 1..];
+
+            // Find if there's a comment (# that's not part of the value)
+            let mut comment_start = None;
+            let mut in_quotes = false;
+            let mut escape_next = false;
+
+            for (i, ch) in after_eq.char_indices() {
+                if escape_next {
+                    escape_next = false;
+                    continue;
+                }
+
+                match ch {
+                    '\\' => escape_next = true,
+                    '"' => in_quotes = !in_quotes,
+                    '#' if !in_quotes => {
+                        comment_start = Some(i);
+                        break;
+                    }
+                    _ => {}
+                }
+            }
+
+            // Extract the part after = but before any comment
+            let (value_part_with_spaces, comment_part) = if let Some(comment_pos) = comment_start {
+                let value_part = &after_eq[..comment_pos];
+                let comment_part = &after_eq[comment_pos..];
+                (value_part, comment_part)
+            } else {
+                (after_eq, "")
+            };
+
+            // Find the whitespace pattern around the value
+            let leading_spaces = &value_part_with_spaces[..value_part_with_spaces.len() - value_part_with_spaces.trim_start().len()];
+
+            // For trailing spaces, we need to be careful when the new value is empty
+            // If new_value is empty, we want to preserve the leading spaces but not add trailing spaces
+            let trailing_spaces = if new_value.is_empty() {
+                ""
+            } else {
+                &value_part_with_spaces[value_part_with_spaces.trim_end().len()..]
+            };
+
+            // Reconstruct the line
+            lines[target_index] = format!("{}={}{}{}{}",
+                                          key_with_whitespace,
+                                          leading_spaces,
+                                          new_value,
+                                          trailing_spaces,
+                                          comment_part
+            );
+        }
     }
 
     fs::write(file_path, lines.join("\n")).await?;
