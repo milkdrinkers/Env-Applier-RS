@@ -24,7 +24,7 @@
 use std::fs;
 use crate::app::change_file;
 use crate::config::Config;
-use crate::utils::yaml::parse_variable;
+use crate::app::parse_variable;
 use anyhow::Result;
 use filetime::{set_file_times, FileTime};
 
@@ -73,7 +73,7 @@ pub async fn deapply(config: &Config) -> Result<u32> {
                         file_format,
                         file,
                         node,
-                        parse_variable(&replacement).as_str(),
+                        parse_variable(file_format, &replacement).as_str(),
                     )
                     .await?;
                     file_changed = true;

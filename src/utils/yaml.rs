@@ -24,7 +24,6 @@
 
 use anyhow::Result;
 use std::path::Path;
-use std::str::FromStr;
 use std::string::String;
 use tokio::fs;
 
@@ -120,11 +119,3 @@ pub async fn update_yaml_node(file_path: &Path, node_path: &str, new_value: &str
     Ok(())
 }
 
-pub fn parse_variable(env: &str) -> String {
-    if let Ok(numeric_value) = f64::from_str(env) {
-        if !env.trim().is_empty() {
-            return numeric_value.to_string();
-        }
-    }
-    format!("\"{}\"", env)
-}

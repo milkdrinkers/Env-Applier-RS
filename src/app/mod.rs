@@ -30,6 +30,7 @@ pub use apply::apply;
 pub use deapply::deapply;
 pub use files::get;
 use std::path::PathBuf;
+use std::str::FromStr;
 
 async fn change_file(
     file_type: &'static str,
@@ -46,4 +47,27 @@ async fn change_file(
         "hocon" => crate::utils::hocon::update_hocon_node(file, node, value).await,
         _ => Ok(()),
     }
+}
+
+pub fn parse_variable(file_type: &'static str, env: &str) -> String {
+    match file_type {
+        "yaml" | "json" | "toml" | "hocon" => {
+            if let Ok(numeric_value) = f64::from_str(env) {
+                if !env.trim().is_empty() {
+                    return numeric_value.to_string();
+                }
+            }
+            format!("\"{}\"", env)
+        },
+         | "properties" => {
+             if let Ok(numeric_value) = f64::from_str(env) {
+                 if !env.trim().is_empty() {
+                     return numeric_value.to_string();
+                 }
+             }
+             format!("{}", env)
+         },
+        _ => String::new()
+    }
+
 }
